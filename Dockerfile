@@ -24,12 +24,23 @@ RUN dnf5 install -y --skip-unavailable \
 RUN dnf5 install -y --skip-unavailable bootc rpm-ostree ostree && \
     dnf5 clean all
 
-# 4. Install Azure Linux kernel (required for bootable OSTree deployments)
-# Azure Linux uses a custom 6.18 LTS kernel with Hyper-V and Azure tuning
+# 4. Install Azure Linux kernel
 RUN dnf5 install -y --skip-unavailable kernel && \
     dnf5 clean all
 
-# 5. Set up container-native OSTree filesystem layout
+# 5. Fix RPM database for OSTree compatibility
+# rpm-ostree expects the rpmdb at /usr/share/rpm, not /var/lib/rpm
+RUN mkdir -p /usr/share/rpm && \
+    if [ -d /var/lib/rpm ] && [ "$(ls -A /var/lib/rpm)" ]; then \
+        cp -a /var/lib/rpm/* /usr/share/rpm/ 2>/dev/null || true; \
+    fi && \
+    rpm --rebuilddb && \
+    # Ensure /usr/share/rpm is actually populated
+    test -f /usr/share/rpm/Packages || test -f /usr/share/rpm/rpmdb.sqlite || \
+    test -f /usr/share/rpm/rpmdb.sqlite-shm || \
+    (echo "RPM db not found at /usr/share/rpm" && exit 1)
+
+# 6. Set up container-native OSTree filesystem layout
 RUN mkdir -p /run/ostree && \
     ln -sf / /sysroot && \
     mkdir -p /usr/lib/ostree && \
@@ -41,7 +52,7 @@ RUN mkdir -p /run/ostree && \
     rm -rf /var && mkdir -p /var && \
     test -f /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
 
-# 6. Mark image as bootable OSTree container
+# 7. Mark image as bootable OSTree container
 LABEL containers.bootc=1
 
 CMD ["/bin/bash"]
