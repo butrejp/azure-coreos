@@ -40,7 +40,6 @@ RUN mkdir -p /usr/share/rpm && \
 
 # 6. Set up container-native OSTree filesystem layout
 RUN mkdir -p /run/ostree && \
-    ln -sf / /sysroot && \
     mkdir -p /usr/lib/ostree && \
     echo '{"sysroot":{"readonly":false}}' > /usr/lib/ostree/prepare-root.cfg && \
     touch /usr/lib/ostree-booted && \
@@ -49,10 +48,10 @@ RUN mkdir -p /run/ostree && \
     ostree init --repo=/ostree/repo --mode=bare-user && \
     mkdir -p /ostree/deploy && \
     rm -rf /var && mkdir -p /var && \
-    # Only create symlink if /usr/lib/os-release doesn't exist at all (not file, not symlink)
     test -e /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
 
 # 7. Mark image as bootable OSTree container
 LABEL ostree.bootable=1
+LABEL containers.bootc=1
 
 CMD ["/bin/bash"]
