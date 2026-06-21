@@ -17,7 +17,7 @@ RUN dnf5 install -y curl && \
     rpm -Uvh --nodeps --force *.rpm && \
     dnf5 clean all
 
-# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, use direct baseurl
+# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, use direct baseurl, disable broken repos
 RUN for f in /etc/yum.repos.d/fedora*.repo; do \
         if [ -f "$f" ]; then \
             sed -i 's/$releasever/43/g' "$f" && \
@@ -25,6 +25,10 @@ RUN for f in /etc/yum.repos.d/fedora*.repo; do \
             sed -i 's/^#baseurl/baseurl/g' "$f"; \
         fi; \
     done && \
+    dnf5 config-manager setopt fedora-cisco-openh264.enabled=0 && \
+    dnf5 config-manager setopt fedora-modular.enabled=0 && \
+    dnf5 config-manager setopt updates-modular.enabled=0 && \
+    dnf5 config-manager setopt fedora-eln.enabled=0 && \
     cat /etc/yum.repos.d/fedora.repo 2>/dev/null || true
 
 # 4. Refresh metadata (may explode, that's fine)
