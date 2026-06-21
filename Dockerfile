@@ -17,10 +17,20 @@ RUN dnf5 install -y curl && \
     rpm -Uvh --nodeps --force *.rpm && \
     dnf5 clean all
 
-# 3. Refresh metadata (may explode, that's fine)
+# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, use direct baseurl
+RUN for f in /etc/yum.repos.d/fedora*.repo; do \
+        if [ -f "$f" ]; then \
+            sed -i 's/$releasever/43/g' "$f" && \
+            sed -i 's/^metalink/#metalink/g' "$f" && \
+            sed -i 's/^#baseurl/baseurl/g' "$f"; \
+        fi; \
+    done && \
+    cat /etc/yum.repos.d/fedora.repo 2>/dev/null || true
+
+# 4. Refresh metadata (may explode, that's fine)
 RUN dnf5 makecache --refresh || echo "makecache failed but we persist"
 
-# 4. Standard POSIX utilities (will now pull from the cursed repo mix)
+# 5. Standard POSIX utilities (will now pull from the cursed repo mix)
 RUN dnf5 install -y \
         gawk \
         sed \
