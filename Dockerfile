@@ -17,8 +17,13 @@ RUN dnf5 install -y curl && \
     rpm -Uvh --nodeps --force *.rpm && \
     dnf5 clean all
 
-# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, set REAL baseurls, disable broken repos
-RUN for f in /etc/yum.repos.d/fedora*.repo; do \
+# 3. Download Fedora GPG keys and fix repo files
+RUN mkdir -p /etc/pki/rpm-gpg && \
+    curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-43-x86_64 \
+        https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/RPM-GPG-KEY-fedora-43-x86_64 && \
+    curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-43-primary \
+        https://getfedora.org/static/fedora.gpg && \
+    for f in /etc/yum.repos.d/fedora*.repo; do \
         if [ -f "$f" ]; then \
             sed -i 's/$releasever/43/g' "$f" && \
             sed -i 's/^metalink/#metalink/g' "$f" && \
@@ -28,8 +33,7 @@ RUN for f in /etc/yum.repos.d/fedora*.repo; do \
     done && \
     sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-cisco-openh264.repo && \
     sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-modular.repo 2>/dev/null || true && \
-    sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-updates-modular.repo 2>/dev/null || true && \
-    cat /etc/yum.repos.d/fedora.repo 2>/dev/null || true
+    sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-updates-modular.repo 2>/dev/null || true
 
 # 4. Refresh metadata
 RUN dnf5 makecache --refresh || echo "makecache failed but we persist"
