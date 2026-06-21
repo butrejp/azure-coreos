@@ -53,6 +53,6 @@ RUN mkdir -p /run/ostree && \
     test -e /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
 
 # 7. Mark image as bootable OSTree container
-LABEL containers.bootc=1
+LABEL ostree.bootable=1
 
 CMD ["/bin/bash"]
