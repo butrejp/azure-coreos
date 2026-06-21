@@ -46,4 +46,15 @@ RUN dnf5 install -y --skip-unavailable \
         util-linux \
     && dnf5 clean all
 
+# 6. Install bootc and set up container-native layout
+RUN dnf5 install -y --skip-unavailable bootc rpm-ostree && \
+    mkdir -p /run/ostree && \
+    ln -sf / /sysroot && \
+    # bootc expects this for container builds
+    mkdir -p /usr/lib/ostree && \
+    echo '{"sysroot":{"readonly":false}}' > /usr/lib/ostree/prepare-root.cfg && \
+    # Create the booted marker for rpm-ostree
+    touch /run/ostree-booted && \
+    dnf5 clean all
+    
 CMD ["/bin/bash"]
