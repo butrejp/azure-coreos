@@ -36,6 +36,7 @@ RUN mkdir -p /run/ostree && \
     rm -rf /var && mkdir -p /var && \
     test -f /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
 
-LABEL bootc=true
+# 5. Mark image as bootable OSTree container (rpm-ostree checks for this)
+LABEL containers.bootc=1
 
 CMD ["/bin/bash"]
