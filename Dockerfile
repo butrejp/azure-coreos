@@ -17,12 +17,13 @@ RUN dnf5 install -y curl && \
     rpm -Uvh --nodeps --force *.rpm && \
     dnf5 clean all
 
-# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, use direct baseurl, disable broken repos
+# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, set REAL baseurls, disable broken repos
 RUN for f in /etc/yum.repos.d/fedora*.repo; do \
         if [ -f "$f" ]; then \
             sed -i 's/$releasever/43/g' "$f" && \
             sed -i 's/^metalink/#metalink/g' "$f" && \
-            sed -i 's/^#baseurl/baseurl/g' "$f"; \
+            sed -i 's|^#baseurl=http://download.example|baseurl=https://download.fedoraproject.org|g' "$f" && \
+            sed -i 's|^baseurl=http://download.example|baseurl=https://download.fedoraproject.org|g' "$f"; \
         fi; \
     done && \
     sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-cisco-openh264.repo && \
@@ -30,10 +31,10 @@ RUN for f in /etc/yum.repos.d/fedora*.repo; do \
     sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-updates-modular.repo 2>/dev/null || true && \
     cat /etc/yum.repos.d/fedora.repo 2>/dev/null || true
 
-# 4. Refresh metadata (skip unavailable repos)
-RUN dnf5 makecache --refresh --skip-unavailable || echo "makecache failed but we persist"
+# 4. Refresh metadata
+RUN dnf5 makecache --refresh || echo "makecache failed but we persist"
 
-# 5. Standard POSIX utilities (skip unavailable repos)
+# 5. Standard POSIX utilities
 RUN dnf5 install -y --skip-unavailable \
         gawk \
         sed \
