@@ -24,7 +24,12 @@ RUN dnf5 install -y --skip-unavailable \
 RUN dnf5 install -y --skip-unavailable bootc rpm-ostree ostree && \
     dnf5 clean all
 
-# 4. Set up container-native OSTree filesystem layout
+# 4. Install Azure Linux kernel (required for bootable OSTree deployments)
+# Azure Linux uses a custom 6.18 LTS kernel with Hyper-V and Azure tuning
+RUN dnf5 install -y --skip-unavailable kernel && \
+    dnf5 clean all
+
+# 5. Set up container-native OSTree filesystem layout
 RUN mkdir -p /run/ostree && \
     ln -sf / /sysroot && \
     mkdir -p /usr/lib/ostree && \
@@ -36,7 +41,7 @@ RUN mkdir -p /run/ostree && \
     rm -rf /var && mkdir -p /var && \
     test -f /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
 
-# 5. Mark image as bootable OSTree container (rpm-ostree checks for this)
+# 6. Mark image as bootable OSTree container
 LABEL containers.bootc=1
 
 CMD ["/bin/bash"]
