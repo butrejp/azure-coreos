@@ -14,16 +14,12 @@ RUN dnf5 install -y curl && \
     curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/Packages/f/fedora-repos-43-1.noarch.rpm && \
     curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/Packages/f/fedora-release-43-25.noarch.rpm && \
     curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/Packages/f/fedora-release-common-43-25.noarch.rpm && \
+    curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/Packages/f/fedora-gpg-keys-43-1.noarch.rpm && \
     rpm -Uvh --nodeps --force *.rpm && \
     dnf5 clean all
 
-# 3. Download Fedora GPG keys and fix repo files
-RUN mkdir -p /etc/pki/rpm-gpg && \
-    curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-43-x86_64 \
-        https://download.fedoraproject.org/pub/fedora/linux/releases/43/Everything/x86_64/os/RPM-GPG-KEY-fedora-43-x86_64 && \
-    curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-43-primary \
-        https://getfedora.org/static/fedora.gpg && \
-    for f in /etc/yum.repos.d/fedora*.repo; do \
+# 3. Fix Fedora repo files: replace $releasever with 43, disable metalink, set REAL baseurls, disable broken repos
+RUN for f in /etc/yum.repos.d/fedora*.repo; do \
         if [ -f "$f" ]; then \
             sed -i 's/$releasever/43/g' "$f" && \
             sed -i 's/^metalink/#metalink/g' "$f" && \
