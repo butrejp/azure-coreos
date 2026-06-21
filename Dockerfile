@@ -55,4 +55,17 @@ RUN mkdir -p /run/ostree && \
 # 7. Mark image as bootable OSTree container
 LABEL containers.bootc=1
 
+# 8. Set up container-native OSTree filesystem layout
+RUN mkdir -p /run/ostree && \
+    ln -sf / /sysroot && \
+    mkdir -p /usr/lib/ostree && \
+    echo '{"sysroot":{"readonly":false}}' > /usr/lib/ostree/prepare-root.cfg && \
+    touch /usr/lib/ostree-booted && \
+    touch /run/ostree-booted && \
+    mkdir -p /ostree/repo && \
+    ostree init --repo=/ostree/repo --mode=bare-user && \
+    mkdir -p /ostree/deploy && \
+    rm -rf /var && mkdir -p /var && \
+    test -f /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
+
 CMD ["/bin/bash"]
