@@ -25,17 +25,16 @@ RUN for f in /etc/yum.repos.d/fedora*.repo; do \
             sed -i 's/^#baseurl/baseurl/g' "$f"; \
         fi; \
     done && \
-    dnf5 config-manager setopt fedora-cisco-openh264.enabled=0 && \
-    dnf5 config-manager setopt fedora-modular.enabled=0 && \
-    dnf5 config-manager setopt updates-modular.enabled=0 && \
-    dnf5 config-manager setopt fedora-eln.enabled=0 && \
+    sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-cisco-openh264.repo && \
+    sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-modular.repo 2>/dev/null || true && \
+    sed -i 's/^enabled=1/enabled=0/g' /etc/yum.repos.d/fedora-updates-modular.repo 2>/dev/null || true && \
     cat /etc/yum.repos.d/fedora.repo 2>/dev/null || true
 
-# 4. Refresh metadata (may explode, that's fine)
-RUN dnf5 makecache --refresh || echo "makecache failed but we persist"
+# 4. Refresh metadata (skip unavailable repos)
+RUN dnf5 makecache --refresh --skip-unavailable || echo "makecache failed but we persist"
 
-# 5. Standard POSIX utilities (will now pull from the cursed repo mix)
-RUN dnf5 install -y \
+# 5. Standard POSIX utilities (skip unavailable repos)
+RUN dnf5 install -y --skip-unavailable \
         gawk \
         sed \
         grep \
