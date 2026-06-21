@@ -24,9 +24,7 @@ RUN dnf5 install -y --skip-unavailable \
 RUN dnf5 install -y --skip-unavailable bootc rpm-ostree ostree && \
     dnf5 clean all
 
-# 4. Install Azure Linux kernel
-RUN dnf5 install -y --skip-unavailable kernel && \
-    dnf5 clean all
+# 4. NO KERNEL HERE — let the recipe install Fedora kernel
 
 # 5. Fix RPM database for OSTree compatibility
 RUN mkdir -p /usr/share/rpm && \
