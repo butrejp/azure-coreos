@@ -11,7 +11,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # This automatically converts your image name to "ghcr.io/your-username/azurelinux4-custom"
+  # This automatically converts your image name to "/your-username/repository-name" format
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -52,5 +52,5 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: ${{ id.meta.outputs.tags }}
-        labels: ${{ id.meta.outputs.labels }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
