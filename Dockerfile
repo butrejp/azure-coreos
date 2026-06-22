@@ -39,6 +39,7 @@ RUN mkdir -p /usr/share/rpm && \
 # 6. Set up container-native OSTree filesystem layout
 RUN mkdir -p /run/ostree && \
     mkdir -p /usr/lib/ostree && \
+    mkdir -p /sysroot && \
     echo '{"sysroot":{"readonly":false}}' > /usr/lib/ostree/prepare-root.cfg && \
     touch /usr/lib/ostree-booted && \
     touch /run/ostree-booted && \
