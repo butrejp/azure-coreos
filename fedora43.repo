@@ -1,0 +1,18 @@
+[fedora43]
+name=Fedora 43 - $basearch
+baseurl=https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Everything/$basearch/os/
+enabled=1
+gpgcheck=1
+gpgkey=https://src.fedoraproject.org/rpms/fedora-repos/raw/rawhide/f/RPM-GPG-KEY-fedora-43-primary
+metadata_expire=7d
+priority=90
+
+
+[fedora43-updates]
+name=Fedora 43 Updates - $basearch
+baseurl=https://dl.fedoraproject.org/pub/fedora/linux/updates/43/Everything/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://src.fedoraproject.org/rpms/fedora-repos/raw/rawhide/f/RPM-GPG-KEY-fedora-43-primary
+metadata_expire=7d
+priority=80

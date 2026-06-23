@@ -2,55 +2,97 @@ FROM mcr.microsoft.com/azurelinux-beta/base/core:4.0
 
 WORKDIR /workspace
 
-# 1. Coreutils swap + allow mixing repos
+# Import Fedora 43 key/repo
+RUN echo "allow_vendor_change=True" >> /etc/dnf/dnf.conf && \
+    rpm --import https://src.fedoraproject.org/rpms/fedora-repos/raw/rawhide/f/RPM-GPG-KEY-fedora-43-primary
+
+COPY fedora43.repo /etc/yum.repos.d/fedora43.repo
+
+# 1. Core system setup + bootc/CoreOS-style packages
 RUN dnf5 upgrade -y && \
-    dnf5 install -y --allowerasing coreutils && \
-    echo "allow_vendor_change=True" >> /etc/dnf/dnf.conf && \
-    dnf5 clean all
-
-# 2. Standard POSIX utilities
-RUN dnf5 install -y --skip-unavailable \
-        gawk \
-        sed \
-        grep \
-        tar \
-        gzip \
-        which \
+    dnf5 install -y --allowerasing --skip-unavailable \
+        audit \
+        bash \
+        bootc \
         ca-certificates \
+        chrony \
+        cloud-init \
+        coreutils \
+        curl \
+        dbus-broker \
+        dhcp-client \
+        dnf5 \
+        dnf5-plugins \
+        dracut-config-generic \
+        dracut-config-rescue \
+        dracut-network \
+        e2fsprogs \
+        filesystem \
+        firewalld \
+        fwupd \
+        gawk \
+        glibc \
+        grep \
+        gzip \
+        hostname \
+        initial-setup \
+        initscripts \
+        iproute \
+        iputils \
+        kbd \
+        kernel \
+        kernel-core \
+        kernel-headers \
+        kernel-modules \
+        kernel-modules-extra \
+        kernel-tools \
+        less \
+        man-db \
+        ncurses \
+        NetworkManager \
+        openssh-clients \
+        openssh-server \
+        parted \
+        plymouth \
+        policycoreutils \
+        prefixdevname \
+        procps-ng \
+        rng-tools \
+        rootfiles \
+        rpm \
+        rsync \
+        sed \
+        selinux-policy-targeted \
+        setup \
+        shadow-utils \
+        sssd-common \
+        sssd-kcm \
+        sudo \
+        systemd \
+        systemd-resolved \
+        tar \
         util-linux \
-    && dnf5 clean all
+        vim-minimal \
+        which \
+        zram-generator-defaults \
+    && kver=$(ls /usr/lib/modules | head -n 1) \
+    && env DRACUT_NO_XATTR=1 dracut --no-xattr --no-hostonly --force -v /usr/lib/modules/"$kver"/initramfs.img "$kver" \
+    && dnf5 clean all \
+    && rm -rf /var/{cache,log,lib/dnf5,lib/rpm}/* /tmp/* /root/.cache \
+    && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# 3. Install bootc, rpm-ostree, and ostree tooling
-RUN dnf5 install -y --skip-unavailable bootc rpm-ostree ostree && \
-    dnf5 clean all
+# create default core user
+RUN useradd -m -G wheel -s /bin/bash core && \
+    echo "core ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/core && \
+    chmod 440 /etc/sudoers.d/core && \
+    passwd -d core || true
 
-# 4. NO KERNEL HERE — let the recipe install Fedora kernel
+# 2. Validate bootc layout
+RUN bootc container lint
 
-# 5. Fix RPM database for OSTree compatibility
-RUN mkdir -p /usr/share/rpm && \
-    if [ -d /var/lib/rpm ] && [ "$(ls -A /var/lib/rpm)" ]; then \
-        cp -a /var/lib/rpm/* /usr/share/rpm/ 2>/dev/null || true; \
-    fi && \
-    rpm --rebuilddb && \
-    test -f /usr/share/rpm/Packages || test -f /usr/share/rpm/rpmdb.sqlite || \
-    test -f /usr/share/rpm/rpmdb.sqlite-shm || \
-    (echo "RPM db not found at /usr/share/rpm" && exit 1)
-
-# 6. Set up container-native OSTree filesystem layout
-RUN mkdir -p /run/ostree && \
-    mkdir -p /usr/lib/ostree && \
-    mkdir -p /sysroot && \
-    echo '{"sysroot":{"readonly":false}}' > /usr/lib/ostree/prepare-root.cfg && \
-    touch /usr/lib/ostree-booted && \
-    touch /run/ostree-booted && \
-    mkdir -p /ostree/repo && \
-    ostree init --repo=/ostree/repo --mode=bare-user && \
-    mkdir -p /ostree/deploy && \
-    rm -rf /var && mkdir -p /var && \
-    test -e /usr/lib/os-release || ln -sf /etc/os-release /usr/lib/os-release
-
-# 7. Mark image as bootable OSTree container
+# 3. Mark as bootable OSTree/bootc image
 LABEL ostree.bootable=1
 LABEL containers.bootc=1
 
-CMD ["/bin/bash"]
+# Systemd as entrypoint
+CMD ["/sbin/init"]
