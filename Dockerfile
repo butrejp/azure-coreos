@@ -81,18 +81,28 @@ RUN dnf5 upgrade -y && \
     && rm -rf /var/{cache,log,lib/dnf5,lib/rpm}/* /tmp/* /root/.cache \
     && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# create default core user
+# 2. Prepare for bootc containerization
+RUN mkdir -p /sysroot && \
+    ln -s var/home /home && \
+    ln -s var/roothome /root && \
+    mkdir -p /usr/lib/ostree && \
+    printf '[composefs]\nenabled = true\n' > /usr/lib/ostree/prepare-root.conf && \
+    rm -rf /boot/* /run/* /tmp/* /var/{cache,log,lib/dnf5,lib/rpm}/* && \
+    mkdir -p /boot /run /tmp /var/cache /var/log /var/tmp && \
+    bootc container finalize-rootfs / || true
+
+# 3. create default core user
 RUN useradd -m -G wheel -s /bin/bash core && \
     echo "core ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/core && \
     chmod 440 /etc/sudoers.d/core && \
     passwd -d core || true
 
-# 2. Validate bootc layout
+# 4. Validate bootc layout
 RUN bootc container lint
 
-# 3. Mark as bootable OSTree/bootc image
+# 5. Mark as bootable OSTree/bootc image
 LABEL ostree.bootable=1
 LABEL containers.bootc=1
 
-# Systemd as entrypoint
+# 6. Systemd as entrypoint 
 CMD ["/sbin/init"]
