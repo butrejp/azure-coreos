@@ -11,6 +11,9 @@ COPY fedora43.repo /etc/yum.repos.d/fedora43.repo
 # 1. Core system setup + bootc/CoreOS-style packages
 RUN dnf5 upgrade -y && \
     dnf5 install -y --allowerasing --skip-unavailable \
+        bootupd \
+        grub2-efi-x64 \
+        shim \
         audit \
         bash \
         bootc \
@@ -74,15 +77,12 @@ RUN dnf5 upgrade -y && \
         vim-minimal \
         which \
         zram-generator-defaults \
-    && kver=$(ls /usr/lib/modules | head -n 1) \
-    && env DRACUT_NO_XATTR=1 dracut --no-xattr --no-hostonly --force -v \
-         /usr/lib/modules/"$kver"/initramfs.img "$kver" \
-    && systemctl enable sshd NetworkManager firewalld chronyd \
-         cloud-init cloud-init-local 2>/dev/null || true \
-    && dnf5 clean all \
-    && rm -rf /var/{cache,log,lib/dnf5}/* /tmp/* /root/.cache
+    && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# 2. OSTree/bootc filesystem layout
+# 2. Fire up bootupd generation while the raw boot structures are untouched
+RUN bootupctl backend generate-update-metadata
+
+# 3. OSTree/bootc filesystem layout
 RUN rm -rf /home /root && \
     ln -s var/home /home && \
     ln -s var/roothome /root && \
@@ -91,47 +91,43 @@ RUN rm -rf /home /root && \
     mkdir -p /usr/lib/ostree && \
     printf '[composefs]\nenabled = true\n' > /usr/lib/ostree/prepare-root.conf && \
     \
-    # Ensure /var/lib/rpm is a symlink for OSTree (move db if it exists as a dir)
+    # Modern dnf5 uses /usr/lib/sysimage/rpm directly. Re-verify safety link:
     mkdir -p /usr/lib/sysimage && \
     if [ -d /var/lib/rpm ] && [ ! -L /var/lib/rpm ]; then \
-        rm -rf /usr/lib/sysimage/rpm 2>/dev/null || true; \
-        mv /var/lib/rpm /usr/lib/sysimage/rpm 2>/dev/null || true; \
+        mv /var/lib/rpm/* /usr/lib/sysimage/rpm/ 2>/dev/null || true; \
     fi && \
     rm -rf /var/lib/rpm && \
     ln -s ../../usr/lib/sysimage/rpm /var/lib/rpm && \
     \
-    # Ensure /var/mail is a symlink for tmpfiles.d compliance
+    # Ensure /var/mail compliance
     rm -rf /var/mail && \
     ln -s spool/mail /var/mail && \
     \
-    # Clean /boot thoroughly (including dotfiles like .hmac)
-    find /boot -mindepth 1 -delete 2>/dev/null || true && \
-    \
-    # Aggressive /var cleanup: remove all non-tmpfiles state so systemd-tmpfiles
-    # can recreate it at runtime. Keep only empty directory structure.
+    # Pure clean state for runtime systemd-tmpfiles initialization
     rm -rf /var/lib/alternatives/* && \
     find /var -type f -delete 2>/dev/null || true && \
     find /var -type d -empty -delete 2>/dev/null || true && \
     rm -rf /run/* /tmp/* && \
-    \
-    # Recreate required directories
     mkdir -p /boot /run /tmp /var/cache /var/log /var/tmp \
              /var/spool /var/lib/alternatives /var/db /var/adm
 
-# 3. Create default core user with systemd sysusers.d entry
+# 4. Create default core user with systemd sysusers.d entry
 RUN useradd -m -G wheel -s /bin/bash core && \
     echo "core ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/core && \
     chmod 440 /etc/sudoers.d/core && \
     passwd -d core || true && \
     printf 'u core 1000:1000 "Core User" /var/home/core /bin/bash\n' > /usr/lib/sysusers.d/core.conf
 
-# 4. Validate bootc layout
+# 5. Clean up dnf cache layers post-configuration
+RUN dnf5 clean all && rm -rf /var/{cache,log,lib/dnf5}/* /tmp/* /root/.cache
+
+# 6. Validate bootc structural integrity
 RUN bootc container lint
 
-# 5. Mark as bootable OSTree/bootc image
+# 7. Mark as bootable OSTree/bootc image
 LABEL ostree.bootable=1
 LABEL containers.bootc=1
 
-# 6. Systemd as entrypoint
+# 8. Systemd as entrypoint
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]
