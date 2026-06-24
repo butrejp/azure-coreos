@@ -79,16 +79,18 @@ RUN dnf5 upgrade -y && \
         zram-generator-defaults \
     && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# 2. Re-stage EFI paths so bootupd can adopt them, then bake metadata
-RUN mkdir -p /usr/lib/bootupd/updates/efi && \
-    if [ -d /boot/efi/EFI/fedora ]; then \
-        cp /boot/efi/EFI/fedora/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true; \
-    elif [ -d /boot/efi/EFI/azurelinux ]; then \
-        cp /boot/efi/EFI/azurelinux/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true; \
-    else \
-        find /boot -name "*.efi" -exec cp {} /usr/lib/bootupd/updates/efi/ \; 2>/dev/null || true; \
-    fi && \
+# 2. Force-stage raw package components into the precise structures bootupd looks for
+RUN mkdir -p /usr/share/shim/x86_64-efi /usr/lib/grub/x86_64-efi /usr/lib/bootupd/updates/efi && \
+    # 1. Pull out the shim binary
+    find / -name "shimx64.efi" -exec cp {} /usr/share/shim/x86_64-efi/ \; 2>/dev/null || true && \
+    # 2. Pull out the grub binary
+    find / -name "grubx64.efi" -exec cp {} /usr/lib/grub/x86_64-efi/ \; 2>/dev/null || true && \
+    # 3. Mirror them into bootupd's internal runtime update cache
+    cp /usr/share/shim/x86_64-efi/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true && \
+    cp /usr/lib/grub/x86_64-efi/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true && \
+    # 4. Trigger the generation now that all bases are covered
     bootupctl backend generate-update-metadata
+
 
 # 3. OSTree/bootc filesystem layout
 RUN rm -rf /home /root && \
