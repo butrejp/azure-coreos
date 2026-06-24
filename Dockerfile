@@ -79,17 +79,51 @@ RUN dnf5 upgrade -y && \
         zram-generator-defaults \
     && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# 2. Force-stage raw package components into the precise structures bootupd looks for
-RUN mkdir -p /usr/share/shim/x86_64-efi /usr/lib/grub/x86_64-efi /usr/lib/bootupd/updates/efi && \
-    # 1. Pull out the shim binary
+# 2. Stage EFI components explicitly for bootupd, then build layout
+RUN mkdir -p /usr/share/shim/x86_64-efi \
+             /usr/lib/grub/x86_64-efi \
+             /usr/lib/bootupd/updates/efi && \
+    # Find and copy binaries wherever dnf dropped them
     find / -name "shimx64.efi" -exec cp {} /usr/share/shim/x86_64-efi/ \; 2>/dev/null || true && \
-    # 2. Pull out the grub binary
     find / -name "grubx64.efi" -exec cp {} /usr/lib/grub/x86_64-efi/ \; 2>/dev/null || true && \
-    # 3. Mirror them into bootupd's internal runtime update cache
+    # Populate bootupd's internal update layout cache
     cp /usr/share/shim/x86_64-efi/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true && \
     cp /usr/lib/grub/x86_64-efi/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true && \
-    # 4. Trigger the generation now that all bases are covered
-    bootupctl backend generate-update-metadata
+    # Generate the payload metadata so the installer can adopt it later
+    bootupctl backend generate-update-metadata && \
+    \
+    # Now execute the standard bootc/OSTree layout symlinks
+    rm -rf /home /root && \
+    ln -s var/home /home && \
+    ln -s var/roothome /root && \
+    mkdir -p /sysroot && \
+    ln -s sysroot/ostree /ostree && \
+    mkdir -p /usr/lib/ostree && \
+    printf '[composefs]\nenabled = true\n' > /usr/lib/ostree/prepare-root.conf && \
+    \
+    # Sync RPM database path
+    mkdir -p /usr/lib/sysimage/rpm && \
+    if [ -d /var/lib/rpm ] && [ ! -L /var/lib/rpm ]; then \
+        cp -a /var/lib/rpm/. /usr/lib/sysimage/rpm/ 2>/dev/null || true; \
+    fi && \
+    rm -rf /var/lib/rpm && \
+    ln -s ../../usr/lib/sysimage/rpm /var/lib/rpm && \
+    \
+    # Ensure /var/mail compliance
+    rm -rf /var/mail && \
+    ln -s spool/mail /var/mail && \
+    \
+    # Aggressive /var cleanup (keep empty dirs, purge state)
+    rm -rf /var/lib/alternatives/* && \
+    find /var -type f -delete 2>/dev/null || true && \
+    find /var -type d -empty -delete 2>/dev/null || true && \
+    rm -rf /run/* /tmp/* && \
+    \
+    # Wipe volatile /boot files AFTER bootupd has successfully indexed them
+    find /boot -mindepth 1 -delete 2>/dev/null || true && \
+    mkdir -p /boot /run /tmp /var/cache /var/log /var/tmp \
+             /var/spool /var/lib/alternatives /var/db /var/adm
+
 
 
 # 3. OSTree/bootc filesystem layout
