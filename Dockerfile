@@ -79,8 +79,16 @@ RUN dnf5 upgrade -y && \
         zram-generator-defaults \
     && systemctl enable sshd NetworkManager firewalld chronyd cloud-init cloud-init-local 2>/dev/null || true
 
-# 2. Fire up bootupd generation while the raw boot structures are untouched
-RUN bootupctl backend generate-update-metadata
+# 2. Re-stage EFI paths so bootupd can adopt them, then bake metadata
+RUN mkdir -p /usr/lib/bootupd/updates/efi && \
+    if [ -d /boot/efi/EFI/fedora ]; then \
+        cp /boot/efi/EFI/fedora/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true; \
+    elif [ -d /boot/efi/EFI/azurelinux ]; then \
+        cp /boot/efi/EFI/azurelinux/* /usr/lib/bootupd/updates/efi/ 2>/dev/null || true; \
+    else \
+        find /boot -name "*.efi" -exec cp {} /usr/lib/bootupd/updates/efi/ \; 2>/dev/null || true; \
+    fi && \
+    bootupctl backend generate-update-metadata
 
 # 3. OSTree/bootc filesystem layout
 RUN rm -rf /home /root && \
@@ -91,10 +99,10 @@ RUN rm -rf /home /root && \
     mkdir -p /usr/lib/ostree && \
     printf '[composefs]\nenabled = true\n' > /usr/lib/ostree/prepare-root.conf && \
     \
-    # Modern dnf5 uses /usr/lib/sysimage/rpm directly. Re-verify safety link:
-    mkdir -p /usr/lib/sysimage && \
+    # Modern dnf5 relocates DB directly to /usr/lib/sysimage/rpm.
+    mkdir -p /usr/lib/sysimage/rpm && \
     if [ -d /var/lib/rpm ] && [ ! -L /var/lib/rpm ]; then \
-        mv /var/lib/rpm/* /usr/lib/sysimage/rpm/ 2>/dev/null || true; \
+        cp -a /var/lib/rpm/. /usr/lib/sysimage/rpm/ 2>/dev/null || true; \
     fi && \
     rm -rf /var/lib/rpm && \
     ln -s ../../usr/lib/sysimage/rpm /var/lib/rpm && \
@@ -104,12 +112,16 @@ RUN rm -rf /home /root && \
     ln -s spool/mail /var/mail && \
     \
     # Pure clean state for runtime systemd-tmpfiles initialization
+    # DO NOT drop /usr/lib/bootupd/updates during your purge
     rm -rf /var/lib/alternatives/* && \
     find /var -type f -delete 2>/dev/null || true && \
     find /var -type d -empty -delete 2>/dev/null || true && \
     rm -rf /run/* /tmp/* && \
+    # Clear out /boot now that bootupctl has finished indexing everything
+    find /boot -mindepth 1 -delete 2>/dev/null || true && \
     mkdir -p /boot /run /tmp /var/cache /var/log /var/tmp \
              /var/spool /var/lib/alternatives /var/db /var/adm
+
 
 # 4. Create default core user with systemd sysusers.d entry
 RUN useradd -m -G wheel -s /bin/bash core && \
